@@ -15,7 +15,7 @@ fabric==2.7.1
 Flask==2.2.2
 funcy==1.17
 future==0.18.2
-idna==3.3
+idna==3.7
 impacket==0.10.0
 invoke==1.7.1
 itsdangerous==2.1.2
