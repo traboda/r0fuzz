@@ -1,0 +1,4 @@
+[console_scripts]
+pymodbus.console = pymodbus.repl.client.main:main
+pymodbus.server = pymodbus.repl.server.main:server
+

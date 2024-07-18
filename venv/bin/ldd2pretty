@@ -1,0 +1,3 @@
+#!/home/v3ct0r/Documents/tools/fuzzer/Dripfuzz/venv/bin/python3.10
+from ldapdomaindump import pretty
+pretty.main()
