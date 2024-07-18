@@ -1,0 +1,70 @@
+[*] [+] Fuzzing modbus protocol
+[*] [+] Fuzzing modbus protocol
+[*] [+] Fuzzing modbus protocol
+[*] [-] modb protocol is not supported
+[*] [+] Dripfuzz failed to init
+[*] [+] Fuzzing modbus protocol
+[*] [+] Fuzzing modbus protocol
+[*] [+] Fuzzing modbus protocol
+[*] [+] Fuzzing modbus protocol
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/ics.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/ics.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/temp.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/temp.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/temp.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/temp.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/temp.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/temp.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/temp.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/temp.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/temp.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/temp.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/temp.pcapng
+[*] [-] 1502 protocol is not supported
+[*] [+] Dripfuzz failed to init
+[*] [-] tcp protocol is not supported
+[*] [+] Dripfuzz failed to init
+[*] [-] 0.0.0.0 protocol is not supported
+[*] [+] Dripfuzz failed to init
+[*] [+] Fuzzing modbus protocol
+[*] [+] Fuzzing modbus protocol
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/ics.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/ics.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/ics.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/ics.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/temp/season/Dripfuzz/sample/ics.pcapng
+[*] [+] Fuzzing dnp3 protocol
+[*] [+] Fuzzing dnp3 protocol
+[*] [+] Fuzzing dnp3 protocol
+[*] [+] Fuzzing modbus protocol
+[*] [+] Fuzzing modbus protocol
+[*] [+] Fuzzing modbus protocol
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/tools/fuzzer/r0fuzz/./sample/ics.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/tools/fuzzer/r0fuzz/./sample/ics.pcapng
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/tools/fuzzer/r0fuzz/./sample/ics.pcapng
+[*] [+] Fuzzing dnp3 protocol
+[*] [+] Fuzzing dnp3 protocol
+[*] [+] Fuzzing dnp3 protocol
+[*] [+] Fuzzing modbus protocol
+[*] [+] The input file is at /home/v3ct0r/Documents/tools/fuzzer/r0fuzz/./sample/ics.pcapng
