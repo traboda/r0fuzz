@@ -42,8 +42,6 @@ pip install -r requirements.txt
 ```shell
 usage: r0fuzz.py [-h] -t TARGET [-v] [-i IP] [-p PORT] {dumb,mutate,generate} ...
 
-A grammar based fuzzer for SCADA protocols
-
 positional arguments:
   {dumb,mutate,generate}
     dumb                Apply dumb fuzzing technique
@@ -66,10 +64,10 @@ You can find the demos [here](/demos).
 ## 5. Features:
 
 - Mutation based fuzzing
-- Generation based fuzzing 
-- Driver module for collaboration mutation and generation based fuzzing. (Work in Progress)
-- Incorporate other protocols (Work in Progress)
-- Fuzzing Using Hardware breakpoints (Work in progress)
+- Generation-based fuzzing 
+- Driver module for the collaboration between mutation and generation based fuzzing. (WIP)
+- Incorporate other ICS protocols support. (WIP)
+- Fuzzing Using Hardware breakpoints. (Work in progress)
 
 ## 6. References
 - [This project is an extension of our old project](https://github.com/AshwAthi8/R0fuzz/tree/master)
