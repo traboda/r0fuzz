@@ -1,0 +1,39 @@
+{
+ "modbus" : 
+ { 
+  "1" : [[0,1,true],[1,1,true],[2,1,false],[3,1,false],
+   [4,1,false],[5,1,false],[6,1,false],[7,1,false],
+   [8,2,true],[10,2,true]], 
+
+  "2" : [[0,1,true],[1,1,true],[2,1,false],[3,1,false],
+   [4,1,false],[5,1,false],[6,1,false],[7,1,false],
+   [8,2,true],[10,2,true]],
+
+  "3" : [[0,1,true],[1,1,true],[2,1,false],[3,1,false],
+   [4,1,false],[5,1,false],[6,1,false],[7,1,false],
+   [8,2,true],[10,2,true]],
+
+  "4" : [[0,1,true],[1,1,true],[2,1,false],[3,1,false],
+   [4,1,false],[5,1,false],[6,1,false],[7,1,false],
+   [8,2,true],[10,2,true]],
+
+  "5" : [[0,1,true],[1,1,true],[2,1,false],[3,1,false],
+   [4,1,false],[5,1,false],[6,1,false],[7,1,false],
+   [8,2,true],[10,2,true]],
+
+  "6" : [[0,1,true],[1,1,true],[2,1,false],[3,1,false],
+   [4,1,false],[5,1,false],[6,1,false],[7,1,false],
+   [8,2,true],[10,2,true]],
+
+  "16": [[0,1,true],[1,1,true],[2,1,false],[3,1,false],
+   [4,1,false],[5,1,false],[6,1,false],[7,1,false],
+   [8,2,true],[10,2,false],[12,1,false],[13,2,false]],
+
+  "23": [[0,1,true],[1,1,true],[2,1,false],[3,1,false],
+   [4,1,false],[5,1,false],[6,1,false],[7,1,false],
+   [8,2,true],[10,2,false],[12,2,true],[14,2,false],
+   [15,1,false],[16,2,false]]
+ }
+ 
+}
+
