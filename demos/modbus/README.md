@@ -42,10 +42,10 @@ python3 r0fuzz.py -t modbus -i 127.0.0.1 -p 1502 replay -log crashes/crashes_090
 
 ## r0fuzz in action
 <p align="center">
-<video src="modbus-demo.mp4" width=800 autoplay loop preload></video>
+<img src="modbus-demo.gif" alt="fuzzing-demo" width=800 />
 </p>
 
 ## Replaying crash packets
 <p align="center">
-<video src="modbus-replay.mp4" width=800 autoplay loop preload></video>
+<img src="modbus-replay.gif" alt="packet-replay-demo" width=800 />
 </p>
