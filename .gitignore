@@ -1,0 +1,16 @@
+venv
+.venv
+.ropeproject
+
+core/__pycache__
+__pycache__
+
+logs/*
+
+boofuzz-results
+
+crashes
+logs
+
+TODO.txt
+r0fuzz_test.py
