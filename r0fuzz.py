@@ -110,7 +110,7 @@ def main():
     mutate = subparser.add_parser("mutate", help="Mutation-based fuzzing")
     generate = subparser.add_parser("generate", help="Generation-based fuzzing")
     replay = subparser.add_parser("replay", help="Replay the packets")
-    ml = subparser.add_parser("ml", help="Apply ML-based fuzzing technique")
+    ml = subparser.add_parser("ml", help="AI driven corpus generation")
     
     parser.add_argument(
         "-t", "--target", help="Target Protocol [modbus/opcua]", type=str, required=True
