@@ -3,7 +3,7 @@ import logging
 
 
 def get_logger(name: str, level: int) -> logging.Logger:
-    """Returns a Logger instance for a file.
+    """Returns a Logger instance for a file
 
     Args:
         name (str): Name of the logger
