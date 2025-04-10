@@ -1,7 +1,9 @@
+import os
 import logging
 
+
 def get_logger(name: str, level: int) -> logging.Logger:
-    """returns a Logger instance for a file
+    """Returns a Logger instance for a file.
 
     Args:
         name (str): Name of the logger
@@ -11,35 +13,30 @@ def get_logger(name: str, level: int) -> logging.Logger:
     Returns:
         logging.Logger: Logger Object
     """
-    l = logging.getLogger(name)
+    os.makedirs("logs", exist_ok=True)
+
+    logger = logging.getLogger(name)
 
     if level == 0:
-        l.setLevel(logging.ERROR)
-    if level == 1:
-        l.setLevel(logging.INFO)
+        logger.setLevel(logging.ERROR)
+    elif level == 1:
+        logger.setLevel(logging.INFO)
     else:
-        l.setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+
+    # Avoid duplicate handlers
+    if logger.hasHandlers():
+        logger.handlers.clear()
 
     stream_h = logging.StreamHandler()
-    file_h = logging.FileHandler("logs/%s.log" % name)
-
-    # formatter = ColoredFormatter(
-    #     "%(asctime)-s %(name)s [%(levelname)s] %(log_color)s%(message)s%(reset)s",
-    #     datefmt=None, reset=True,
-    #     log_colors={
-    #         "DEBUG": "purple",
-    #         "INFO": "green",
-    #         "WARNING": "yellow",
-    #         "ERROR": "red",
-    #         "CRITICAL": "red",
-    #     }
-    # )
+    file_h = logging.FileHandler(f"logs/{name}.log")
 
     formatter = logging.Formatter("[*] %(message)s")
 
     stream_h.setFormatter(formatter)
     file_h.setFormatter(formatter)
-    l.addHandler(stream_h)
-    l.addHandler(file_h)
 
-    return l
+    logger.addHandler(stream_h)
+    logger.addHandler(file_h)
+
+    return logger

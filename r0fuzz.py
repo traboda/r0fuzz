@@ -1,23 +1,26 @@
 from core.logger import get_logger
-
 from core.extract import Extractor
 from core.mut_fuzzing import PackGen
 from core.dumb_fuzzing import DFuzz
 from core.gen_fuzzing import GFuzz
+from core.ml_generation import Generation
 from core.replayer import Replayer
 
 # Default imports
 import argparse
 import os
 import sys
+import logging
 from colorama import init
 from termcolor import cprint
 from pyfiglet import figlet_format
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-class r0fuzz(object):
 
-    supported_protocol = ["modbus"]
+class r0fuzz:
+    supported_protocol = ["modbus", "opcua"]
 
     def __init__(self, args):
         self.protocol = args.target
@@ -25,6 +28,10 @@ class r0fuzz(object):
         self.log_level = args.verbosity
         self.ip = args.ip
         self.port = args.port
+
+        if self.command == "ml":
+            self.ml_fuzzer = Generation()
+            self.pcap = args.seed
 
         if self.command == "dumb":
             self.dfuzz = DFuzz(self)
@@ -58,8 +65,32 @@ class r0fuzz(object):
                 logging.error("[-] The seed file is not found at %s", self.seed)
                 return False
             logging.debug("[+] The input file is at %s", self.seed)
+            
+        if self.command == "ml":
+            if not os.path.exists(self.pcap):
+                logging.error("[-] The PCAP path not found at %s", self.pcap)
+                return False
+            elif os.path.isfile(self.pcap) and not self.pcap.lower().endswith('.pcap'):
+                logging.error("[-] The file at %s is not a PCAP file", self.pcap)
+                return False
+            logging.debug("[+] The PCAP path is at %s", self.pcap)
 
         return True
+        
+    def train_and_generate(self):
+        try:
+            self.ml_fuzzer.train(self.pcap)
+
+            output_file = f"{self.protocol}.pcap"
+            self.ml_fuzzer.generate_corpus(
+                num_samples=100,
+                output_file=output_file, 
+                protocol=self.protocol
+            )
+            logging.info(f"[+] Generated {self.protocol} packets and saved to {output_file}")
+        except Exception as e:
+            logging.error(f"[-] ML Generation failed: {e}")
+            sys.exit(-1)
 
 
 def main():
@@ -79,13 +110,14 @@ def main():
     mutate = subparser.add_parser("mutate", help="Mutation-based fuzzing")
     generate = subparser.add_parser("generate", help="Generation-based fuzzing")
     replay = subparser.add_parser("replay", help="Replay the packets")
+    ml = subparser.add_parser("ml", help="Apply ML-based fuzzing technique")
     
     parser.add_argument(
         "-t", "--target", help="Target Protocol [modbus/opcua]", type=str, required=True
     )
     parser.add_argument("-v", "--verbosity", help="Log level", action="count")
     parser.add_argument("-i", "--ip", help="Target IP Address [= 127.0.0.1]", default="127.0.0.1")
-    parser.add_argument("-p", "--port", help="Target Port [= 1234]", type=int, default=1234)
+    parser.add_argument("-p", "--port", help="Target Port [= 1502]", type=int, default=1502)
     
     mutate.add_argument(
         "-s", "--seed", help="Sample input file", type=str, required=True
@@ -94,6 +126,8 @@ def main():
     replay.add_argument(
         "-log", "--logfile", help="Crash Log file", type=str, required=True
     )
+    
+    ml.add_argument("-s", "--seed", help="directory containing .pcap files", type=str, required=True)
     
     args = parser.parse_args()
 
@@ -116,12 +150,14 @@ def main():
         if r0obj.protocol == "modbus":
             r0obj.gfuzz.modbus_fuzz()
         elif r0obj.protocol == "opcua":
-            print("WIP")
-            sys.exit()
+            r0obj.gfuzz.opcua_fuzz()
             
     elif r0obj.command == "replay":
         logging.info("[+] Replaying Log Packets")
-        r0obj.replayer.replayPackets()
+        r0obj.replayer.replayPackets(r0obj.crash_log)
+            
+    elif r0obj.command == "ml":
+        r0obj.train_and_generate()
             
     else:
         print("Invalid command")
