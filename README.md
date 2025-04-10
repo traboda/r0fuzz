@@ -57,6 +57,7 @@ You can find the demos [here](/demos).
 ## 4. Features:
 - **Mutation based fuzzing**: Randomly mutates existing inputs to discover unexpected behavior based on Radamsa.
 - **Generation-based fuzzing**: Crafts inputs from protocol specifications to explore deeper states using boofuzz.
+- **AI-driven corpus generation**: Utilizes machine learning models (e.g., VAEs, LLMs) to synthesize realistic protocol inputs and enhance fuzzing coverage.
 - **Multi-protocol ICS support**: Currently supports Modbus. OPC UA support is in progress.
 - **Hybrid fuzzing driver**: Coordinates mutation and generation strategies for improved coverage.
 - Fuzzing Using Hardware breakpoints. (WIP)
