@@ -17,7 +17,7 @@ Deprecated==1.2.18
 dnspython==2.7.0
 fabric==3.2.2
 filelock==3.18.0
-Flask==3.1.0
+Flask==3.1.1
 fsspec==2025.3.2
 funcy==2.0
 future==1.0.0
