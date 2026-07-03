@@ -13,12 +13,13 @@ class Extractor(object):
         """
         fields_dict = {"transID1": [], "transID2": [], "protoID1": [], "protoID2": [], "length1": [], "length2": [], "unitID": [], "functionCode": [], "start_addr": [], "count": [] }
 
+        skipped = 0
         for packet in packets:
             try:
                 if packet.haslayer("TCP") and packet["TCP"].sport == self.PORT_MODBUS:
                     hex_val = getattr(packet["TCP"], "load")
                     packet_len = len(hex_val)
-                    
+
                     if (packet_len >= 12):
                         fields_dict["transID1"].append(hex_val[0])
                         fields_dict["transID2"].append(hex_val[1])
@@ -30,10 +31,15 @@ class Extractor(object):
                         fields_dict["functionCode"].append(hex_val[7])
                         fields_dict["start_addr"].append(hex_val[8:10])
                         fields_dict["count"].append(hex_val[10:12])
-                        
-            except Exception as e:
-                print(f"Error extracting Modbus fields: {e}")
-                return None
+
+            except Exception:
+                # A packet without a payload (e.g. a bare ACK) shouldn't
+                # discard every other packet already extracted -- skip it.
+                skipped += 1
+                continue
+
+        if skipped:
+            print(f"[!] Skipped {skipped} packet(s) with no usable Modbus payload")
 
         return fields_dict
 

@@ -4,6 +4,7 @@ from core.mut_fuzzing import PackGen
 from core.dumb_fuzzing import DFuzz
 from core.gen_fuzzing import GFuzz
 from core.ml_generation import Generation
+from core.orchestrator import FuzzOrchestrator
 # from core.pcap_processor import PCAPProcessor
 
 # Default imports
@@ -43,6 +44,12 @@ class r0fuzz:
         elif self.command == "generate":
             self.gfuzz = GFuzz(self)
 
+        elif self.command == "parallel":
+            self.seed = os.path.join(os.getcwd(), args.seed)
+            self.rounds = args.rounds
+            self.round_duration = args.round_duration
+            self.server_binary = args.server_binary
+
         if not self._sanity_check():
             logging.critical("[+] r0fuzz failed to init")
             sys.exit(-1)
@@ -53,7 +60,7 @@ class r0fuzz:
             return False
         logging.debug("[+] Fuzzing %s protocol", self.protocol)
 
-        if self.command == "mutate":
+        if self.command in ("mutate", "parallel"):
             if not os.path.isfile(self.seed):
                 logging.error("[-] The seed file is not found at %s", self.seed)
                 return False
@@ -99,6 +106,7 @@ def main():
     mutate = subparser.add_parser("mutate", help="Apply mutation based fuzzing technique")
     generate = subparser.add_parser("generate", help="Apply generation based fuzzing technique")
     ml = subparser.add_parser("ml", help="Apply ML-based fuzzing technique")
+    parallel = subparser.add_parser("parallel", help="Run all fuzzing strategies in parallel with adaptive performance-based weighting")
 
     parser.add_argument("-t", "--target", help="target protocol", type=str, default="modbus")
     parser.add_argument("-v", "--verbosity", help="Log level", action="count")
@@ -107,6 +115,11 @@ def main():
 
     mutate.add_argument("-s", "--seed", help="sample input file", type=str, required=True)
     ml.add_argument("-s", "--seed", help="directory containing .pcap files", type=str, required=True)
+
+    parallel.add_argument("-s", "--seed", help="sample input file (used by the mutate strategy)", type=str, required=True)
+    parallel.add_argument("--rounds", help="number of scoring rounds to run", type=int, default=10)
+    parallel.add_argument("--round-duration", help="seconds each fuzzer gets per round, scaled by its weight", type=float, default=60)
+    parallel.add_argument("--server-binary", help="path to a local server binary to supervise for crash detection", type=str, default=None)
 
     args = parser.parse_args()
 
@@ -133,6 +146,15 @@ def main():
 
     elif r0obj.command == "ml":
         r0obj.train_and_generate()
+
+    elif r0obj.command == "parallel":
+        orchestrator = FuzzOrchestrator(
+            r0obj,
+            rounds=r0obj.rounds,
+            round_duration=r0obj.round_duration,
+            server_binary=r0obj.server_binary,
+        )
+        orchestrator.run()
 
     else:
         print("Invalid command")

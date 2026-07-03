@@ -1,301 +1,313 @@
 from scapy.all import Ether, IP, TCP, Raw, wrpcap, rdpcap
-from collections import defaultdict
-from sklearn.cluster import KMeans
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
 import random
+import struct
 import logging
-import numpy as np
 import os
 import datetime
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+PORT_MODBUS = 502
+PORT_OPCUA = 4840
+PAD_TOKEN = 256   
+VOCAB_SIZE = 257  
+MODBUS_VALID_FUNCTION_CODES = [1, 2, 3, 4, 5, 6, 15, 16, 22, 23]
+
+OPCUA_UNCHUNKED_MESSAGE_TYPES = [b"HEL", b"ACK", b"ERR"]
+OPCUA_CHUNKABLE_MESSAGE_TYPES = [b"OPN", b"MSG", b"CLO"]
+OPCUA_CHUNK_TYPES = [b"F", b"C", b"A"]
+
+
+class ByteLSTM(nn.Module):
+
+
+    def __init__(self, vocab_size=VOCAB_SIZE, emb_dim=32, hidden_dim=128):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, emb_dim, padding_idx=PAD_TOKEN)
+        self.lstm = nn.LSTM(emb_dim, hidden_dim, batch_first=True)
+        self.output_layer = nn.Linear(hidden_dim, 256)
+
+    def forward(self, x, hidden=None):
+        emb = self.embedding(x)
+        out, hidden = self.lstm(emb, hidden)
+        logits = self.output_layer(out)
+        return logits, hidden
+
+
 class Generation:
+
+
     def __init__(self):
-        self.patterns = defaultdict(list)
-        self.function_code_model = None
-        self.field_model = None
-        self.logging_enabled = True
+        self.models = {}           
+        self.payload_lengths = {}  
 
-    def train(self, pcap_path):
-        """
-        Learn patterns from PCAP file(s).
-        Args:
-            pcap_path (str): Path to a PCAP file or a directory of PCAP files.
-        Returns:
-            bool: True if training succeeded, False otherwise.
-        """
-        logging.info(f"[+] Learning patterns from PCAP source: {pcap_path}")
-        
-        features = []
-        pcap_count = 0
-        
-        try:
-            if not os.path.exists(pcap_path):
-                logging.error(f"[-] The specified path does not exist: {pcap_path}")
-                return False
+    def _collect_pcap_files(self, pcap_path):
+        if os.path.isfile(pcap_path):
+            return [pcap_path] if pcap_path.lower().endswith(".pcap") else []
+        files = []
+        if os.path.isdir(pcap_path):
+            for root, _, names in os.walk(pcap_path):
+                for name in names:
+                    if name.lower().endswith(".pcap"):
+                        files.append(os.path.join(root, name))
+        return files
 
-            if os.path.isfile(pcap_path):
-                if pcap_path.lower().endswith(".pcap"):
-                    logging.info(f"[+] Processing single PCAP file: {pcap_path}")
-                    file_features = self.extract_features(pcap_path)
-                    if file_features:
-                        features.extend(file_features)
-                        pcap_count = 1
-                        logging.info(f"[+] Successfully processed {pcap_path} with {len(file_features)} features extracted")
-                    else:
-                        logging.warning(f"[!] No valid Modbus/TCP features found in {pcap_path}")
-                        return False
-                else:
-                    logging.error(f"[-] File is not a .pcap file: {pcap_path}")
-                    return False
+    def extract_payloads(self, pcap_path, protocol):
 
-            elif os.path.isdir(pcap_path):
-                logging.info(f"[+] Processing directory of PCAP files: {pcap_path}")
-                processed_files = 0
-                for root, _, files in os.walk(pcap_path):
-                    for file in files:
-                        if file.lower().endswith(".pcap"):
-                            pcap_file = os.path.join(root, file)
-                            try:
-                                logging.info(f"[+] Processing {pcap_file}")
-                                file_features = self.extract_features(pcap_file)
-                                if file_features:
-                                    features.extend(file_features)
-                                    processed_files += 1
-                                    logging.info(f"[+] Processed {pcap_file} with {len(file_features)} features")
-                                else:
-                                    logging.warning(f"[!] No valid Modbus/TCP features found in {pcap_file}")
-                            except Exception as e:
-                                logging.error(f"[-] Error processing {pcap_file}: {e}")
-                                continue
-                
-                pcap_count = processed_files
-                if pcap_count == 0:
-                    logging.error(f"[-] No valid .pcap files with Modbus/TCP traffic found in {pcap_path}")
-                    return False
+        port = PORT_MODBUS if protocol == "modbus" else PORT_OPCUA
+        pcap_files = self._collect_pcap_files(pcap_path)
+        if not pcap_files:
+            logging.error(f"[-] No .pcap files found at {pcap_path}")
+            return []
 
-            else:
-                logging.error(f"[-] Path is neither a file nor directory: {pcap_path}")
-                return False
+        payloads = []
+        for pcap_file in pcap_files:
+            try:
+                packets = rdpcap(pcap_file)
+            except Exception as e:
+                logging.warning(f"[!] Skipping unreadable pcap {pcap_file}: {e}")
+                continue
 
-            if not features:
-                logging.error("[-] No features extracted for training.")
-                return False
+            for packet in packets:
+                if TCP in packet and Raw in packet:
+                    if packet[TCP].sport == port or packet[TCP].dport == port:
+                        payload = bytes(packet[Raw].load)
+                        if len(payload) >= 8:
+                            payloads.append(payload)
 
-            # Convert to numpy array for ML processing
-            features = np.array(features)
-            
-            # Train models
-            self.train_function_code_model(features)
-            self.train_field_model(features)
-            
-            logging.info(f"[+] Successfully learned patterns from {pcap_count} file(s)")
-            logging.info(f"[+] Function code model: {'trained' if self.function_code_model else 'not trained'}")
-            logging.info(f"[+] Field model: {'trained' if self.field_model else 'not trained'}")
-            
-            return True
+        logging.info(f"[+] Extracted {len(payloads)} {protocol} payloads from {len(pcap_files)} pcap file(s)")
+        return payloads
 
-        except Exception as e:
-            logging.error(f"[-] Error during training: {str(e)}", exc_info=True)
+    def train(self, pcap_path, protocol="modbus", epochs=30, max_len=128, lr=1e-3):
+
+        payloads = self.extract_payloads(pcap_path, protocol)
+        if not payloads:
+            logging.error(f"[-] No training data for {protocol}; aborting train().")
             return False
 
-    def extract_features(self, pcap_file):
-        features = []
-        valid_function_codes = [1, 2, 3, 4, 5, 6, 15, 16, 23]
-        packet_count = 0
-        modbus_packet_count = 0
+        max_len = min(max_len, max(len(p) for p in payloads))
+        self.payload_lengths[protocol] = [min(len(p), max_len) for p in payloads]
 
-        try:
-            packets = rdpcap(pcap_file)
-            logging.debug(f"[+] Processing {pcap_file} with {len(packets)} packets")
-            
-            for packet in packets:
-                packet_count += 1
-                try:
-                    if TCP in packet and Raw in packet:
-                        payload = packet[Raw].load
-                        # Check for Modbus/TCP (port 502)
-                        if packet[TCP].dport == 502 or packet[TCP].sport == 502:
-                            if len(payload) >= 8:  # Minimum Modbus/TCP PDU length
-                                func_code = payload[7]
-                                if func_code in valid_function_codes:
-                                    start_addr = int.from_bytes(payload[8:10], byteorder="big")
-                                    quantity = int.from_bytes(payload[10:12], byteorder="big")
-                                    features.append([func_code, start_addr, quantity])
-                                    modbus_packet_count += 1
-                except Exception as e:
-                    logging.debug(f"[!] Error processing packet {packet_count}: {str(e)}")
-                    continue
-            
-            logging.info(f"[+] Processed {packet_count} packets, found {modbus_packet_count} valid Modbus/TCP packets in {pcap_file}")
-            
-        except Exception as e:
-            logging.error(f"[-] Error reading pcap file {pcap_file}: {str(e)}")
-        
-        return features
+        inputs = torch.full((len(payloads), max_len), PAD_TOKEN, dtype=torch.long)
+        targets = torch.full((len(payloads), max_len), PAD_TOKEN, dtype=torch.long)
+        for i, payload in enumerate(payloads):
+            payload = payload[:max_len]
+            in_seq = [PAD_TOKEN] + list(payload[:-1])  # PAD_TOKEN doubles as START marker here
+            inputs[i, :len(in_seq)] = torch.tensor(in_seq, dtype=torch.long)
+            targets[i, :len(payload)] = torch.tensor(list(payload), dtype=torch.long)
 
-    def train_function_code_model(self, features):
-        if not features.any():
-            logging.error("[-] No features to train function code model.")
-            return
+        model = ByteLSTM()
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+        criterion = nn.CrossEntropyLoss(ignore_index=PAD_TOKEN)
 
-        function_codes = np.array([[f[0]] for f in features])
-        unique_codes = np.unique(function_codes)
-        n_clusters = min(3, len(unique_codes))
+        dataset = TensorDataset(inputs, targets)
+        batch_size = min(32, len(payloads))
+        loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-        if n_clusters <= 0:
-            logging.error("[-] Cannot train function code model: not enough unique function codes.")
-            return
+        model.train()
+        for epoch in range(epochs):
+            total_loss = 0.0
+            for batch_inputs, batch_targets in loader:
+                optimizer.zero_grad()
+                logits, _ = model(batch_inputs)
+                loss = criterion(logits.reshape(-1, 256), batch_targets.reshape(-1))
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+            logging.info(f"[{protocol}] Epoch {epoch + 1}/{epochs} - loss: {total_loss:.4f}")
 
-        self.function_code_model = KMeans(n_clusters=n_clusters)
-        self.function_code_model.fit(function_codes)
-        logging.info(f"[+] Function code model trained successfully with {n_clusters} clusters.")
+        model.eval()
+        self.models[protocol] = model
 
-    def train_field_model(self, features):
-        if not features.any():
-            logging.error("[-] No features to train field model.")
-            return
+        os.makedirs("models", exist_ok=True)
+        model_path = os.path.join("models", f"{protocol}_lstm.pth")
+        torch.save(model.state_dict(), model_path)
+        logging.info(f"[+] Saved trained {protocol} model to {model_path}")
+        return True
 
-        X = features[:, 0].reshape(-1, 1)
-        y = features[:, 1:]
+    def generate_sequence(self, protocol, length, temperature=0.8):
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        model = self.models.get(protocol)
+        if model is None:
+            raise RuntimeError(f"No trained model for protocol '{protocol}'; call train() first")
 
-        self.field_model = RandomForestRegressor(n_estimators=100, random_state=42)
-        self.field_model.fit(X_train, y_train)
-        logging.info("[+] Field model trained successfully.")
+        model.eval()
+        generated = []
+        hidden = None
+        next_input = torch.tensor([[PAD_TOKEN]], dtype=torch.long)
 
-    def generate_modbus_query_packet(self):
-        return self._generate_modbus_packet(is_response=False)
+        with torch.no_grad():
+            while len(generated) < length:
+                logits, hidden = model(next_input, hidden)
+                probs = torch.softmax(logits[0, -1] / temperature, dim=-1)
+                next_byte = torch.multinomial(probs, 1).item()
+                generated.append(next_byte)
+                next_input = torch.tensor([[next_byte]], dtype=torch.long)
 
-    def generate_modbus_response_packet(self):
-        return self._generate_modbus_packet(is_response=True)
+        return bytes(generated)
 
-    def _generate_modbus_packet(self, is_response=False):
-        valid_function_codes = [1, 2, 3, 4, 5, 6, 15, 16, 23]
+    def _fixup_modbus(self, raw_bytes):
 
-        if self.function_code_model:
-            cluster_idx = np.random.randint(0, len(self.function_code_model.cluster_centers_))
-            func_code = int(self.function_code_model.cluster_centers_[cluster_idx][0])
-            if func_code not in valid_function_codes:
-                func_code = random.choice(valid_function_codes)
+        buf = bytearray(raw_bytes)
+        if len(buf) < 8:
+            buf.extend(bytes(8 - len(buf)))
+
+        buf[0:2] = struct.pack(">H", random.randint(0, 65535))  # transaction id
+        buf[2:4] = b"\x00\x00"                                   # protocol id, always 0
+        length_val = max(1, min(len(buf) - 6, 65535))            # unit id + PDU byte count
+        buf[4:6] = struct.pack(">H", length_val)
+
+        if buf[7] not in MODBUS_VALID_FUNCTION_CODES:
+            buf[7] = min(MODBUS_VALID_FUNCTION_CODES, key=lambda code: abs(code - buf[7]))
+        return bytes(buf)
+
+    def _fixup_opcua(self, raw_bytes):
+
+        buf = bytearray(raw_bytes)
+        if len(buf) < 8:
+            buf.extend(bytes(8 - len(buf)))
+
+        if bytes(buf[0:3]) not in OPCUA_UNCHUNKED_MESSAGE_TYPES + OPCUA_CHUNKABLE_MESSAGE_TYPES:
+            message_type = random.choice(OPCUA_UNCHUNKED_MESSAGE_TYPES + OPCUA_CHUNKABLE_MESSAGE_TYPES)
+            buf[0:3] = message_type
         else:
-            func_code = random.choice(valid_function_codes)
+            message_type = bytes(buf[0:3])
 
-        if self.field_model:
-            predicted_values = self.field_model.predict([[func_code]])
-            start_addr = int(max(0, predicted_values[0][0]))
-            quantity = int(max(1, predicted_values[0][1]))
+        if message_type in OPCUA_UNCHUNKED_MESSAGE_TYPES:
+            buf[3:4] = b"F"
+        elif bytes(buf[3:4]) not in OPCUA_CHUNK_TYPES:
+            buf[3:4] = random.choice(OPCUA_CHUNK_TYPES)
+
+        buf[4:8] = struct.pack("<I", len(buf))
+        return bytes(buf)
+
+    def _build_modbus_valid_pdu(self):
+        """Deterministically build a spec-conformant Modbus PDU (request shape)
+        for a randomly chosen valid function code, with every length/count
+        field correctly derived -- nothing here can come out malformed."""
+        function_code = random.choice(MODBUS_VALID_FUNCTION_CODES)
+
+        if function_code in (1, 2):
+            start_addr = random.randint(0, 0xFFFF)
+            quantity = random.randint(1, 2000)
+            pdu = struct.pack(">BHH", function_code, start_addr, quantity)
+        elif function_code in (3, 4):
+            start_addr = random.randint(0, 0xFFFF)
+            quantity = random.randint(1, 125)
+            pdu = struct.pack(">BHH", function_code, start_addr, quantity)
+        elif function_code == 5:
+            addr = random.randint(0, 0xFFFF)
+            value = random.choice([0x0000, 0xFF00])
+            pdu = struct.pack(">BHH", function_code, addr, value)
+        elif function_code == 6:
+            addr = random.randint(0, 0xFFFF)
+            value = random.randint(0, 0xFFFF)
+            pdu = struct.pack(">BHH", function_code, addr, value)
+        elif function_code == 15:
+            start_addr = random.randint(0, 0xFFFF)
+            quantity = random.randint(1, 1968)
+            byte_count = (quantity + 7) // 8
+            values = bytes(random.randint(0, 255) for _ in range(byte_count))
+            pdu = struct.pack(">BHHB", function_code, start_addr, quantity, byte_count) + values
+        elif function_code == 16:
+            start_addr = random.randint(0, 0xFFFF)
+            quantity = random.randint(1, 123)
+            byte_count = quantity * 2
+            values = bytes(random.randint(0, 255) for _ in range(byte_count))
+            pdu = struct.pack(">BHHB", function_code, start_addr, quantity, byte_count) + values
+        elif function_code == 22:
+            ref_addr = random.randint(0, 0xFFFF)
+            and_mask = random.randint(0, 0xFFFF)
+            or_mask = random.randint(0, 0xFFFF)
+            pdu = struct.pack(">BHHH", function_code, ref_addr, and_mask, or_mask)
+        else:  # 23
+            read_start = random.randint(0, 0xFFFF)
+            read_qty = random.randint(1, 125)
+            write_start = random.randint(0, 0xFFFF)
+            write_qty = random.randint(1, 121)
+            write_byte_count = write_qty * 2
+            write_values = bytes(random.randint(0, 255) for _ in range(write_byte_count))
+            pdu = struct.pack(">BHHHHB", function_code, read_start, read_qty, write_start, write_qty, write_byte_count) + write_values
+
+        return pdu
+
+    def _build_modbus_valid_packet(self):
+        """Wrap a valid PDU in a valid MBAP header."""
+        pdu = self._build_modbus_valid_pdu()
+        trans_id = random.randint(0, 0xFFFF)
+        unit_id = random.randint(0, 247)
+        length_val = len(pdu) + 1  # unit id + PDU
+        mbap = struct.pack(">HHHB", trans_id, 0, length_val, unit_id)
+        return mbap + pdu
+
+    def _build_opcua_valid_packet(self):
+
+        version = 0
+        receive_buffer_size = random.choice([8192, 16384, 65535, 65536])
+        send_buffer_size = random.choice([8192, 16384, 65535, 65536])
+        max_message_size = random.choice([0, 65536, 131072])
+        max_chunk_count = random.choice([0, 1, 100])
+
+        if random.random() < 0.5:
+            host = random.choice(["localhost", "192.168.1.1", "opcua-server"])
+            endpoint_url = f"opc.tcp://{host}:4840".encode()
+            body = struct.pack("<IIIII", version, receive_buffer_size, send_buffer_size,
+                                max_message_size, max_chunk_count)
+            body += struct.pack("<i", len(endpoint_url)) + endpoint_url
+            message_type = b"HEL"
         else:
-            start_addr = random.randint(0, 65535)
-            quantity = random.randint(1, 200)
+            body = struct.pack("<IIIII", version, receive_buffer_size, send_buffer_size,
+                                max_message_size, max_chunk_count)
+            message_type = b"ACK"
 
-        if func_code in [1, 2, 3, 4, 15, 16] and quantity > 125:
-            quantity = 125
+        header = message_type + b"F" + struct.pack("<I", 8 + len(body))
+        return header + body
 
-        try:
-            if is_response:
-                return self._generate_modbus_response(func_code, start_addr, quantity)
-            else:
-                return self._generate_modbus_query(func_code, start_addr, quantity)
-        except Exception as e:
-            logging.error(f"[-] Error generating Modbus packet: {e}")
+    def generate_corpus(self, num_samples=20, output_dir=None, output_file=None, protocol="modbus", strict_valid=True):
+
+        if protocol not in ("modbus", "opcua"):
+            logging.error(f"[-] Unsupported protocol '{protocol}' for corpus generation.")
+            return None
+        if not strict_valid and protocol not in self.models:
+            logging.error(f"[-] No trained model for protocol '{protocol}'. Call train() first.")
             return None
 
-    def _generate_modbus_query(self, func_code, start_addr, quantity):
-        if func_code in [1, 2, 3, 4]:
-            pdu = func_code.to_bytes(1, "big") + start_addr.to_bytes(2, "big") + quantity.to_bytes(2, "big")
-        elif func_code in [5, 6]:
-            pdu = func_code.to_bytes(1, "big") + start_addr.to_bytes(2, "big") + quantity.to_bytes(2, "big")
-        elif func_code in [15, 16]:
-            byte_count = (quantity + 7) // 8 if func_code == 15 else quantity * 2
-            values = bytes([0xFF for _ in range(byte_count)])
-            pdu = func_code.to_bytes(1, "big") + start_addr.to_bytes(2, "big") + quantity.to_bytes(2, "big") + byte_count.to_bytes(1, "big") + values
-        elif func_code == 23:
-            read_start_addr = start_addr
-            read_quantity = quantity
-            write_start_addr = start_addr + quantity
-            write_quantity = quantity
-            write_byte_count = write_quantity * 2
-            write_values = bytes([0xFF for _ in range(write_byte_count)])
-            pdu = (
-                func_code.to_bytes(1, "big") +
-                read_start_addr.to_bytes(2, "big") +
-                read_quantity.to_bytes(2, "big") +
-                write_start_addr.to_bytes(2, "big") +
-                write_quantity.to_bytes(2, "big") +
-                write_byte_count.to_bytes(1, "big") +
-                write_values
-            )
-        else:
-            raise ValueError(f"Unsupported function code: {func_code}")
-
-        trans_id = random.randint(0, 65535)
-        proto_id = 0
-        length = len(pdu) + 1
-        unit_id = 1
-
-        mbap = trans_id.to_bytes(2, "big") + proto_id.to_bytes(2, "big") + length.to_bytes(2, "big") + unit_id.to_bytes(1, "big")
-        return Ether() / IP(src="192.168.1.1", dst="192.168.1.2") / TCP(sport=random.randint(1024, 65535), dport=502, flags="PA") / Raw(load=mbap + pdu)
-
-    def _generate_modbus_response(self, func_code, start_addr, quantity):
-        if func_code in [1, 2]:
-            byte_count = (quantity + 7) // 8
-            values = bytes([random.randint(0, 255) for _ in range(byte_count)])
-            pdu = func_code.to_bytes(1, "big") + byte_count.to_bytes(1, "big") + values
-        elif func_code in [3, 4]:
-            byte_count = quantity * 2
-            values = bytes([random.randint(0, 255) for _ in range(byte_count)])
-            pdu = func_code.to_bytes(1, "big") + byte_count.to_bytes(1, "big") + values
-        elif func_code in [5, 6, 15, 16]:
-            pdu = func_code.to_bytes(1, "big") + start_addr.to_bytes(2, "big") + quantity.to_bytes(2, "big")
-        elif func_code == 23:
-            byte_count = quantity * 2
-            values = bytes([random.randint(0, 255) for _ in range(byte_count)])
-            pdu = func_code.to_bytes(1, "big") + byte_count.to_bytes(1, "big") + values
-        else:
-            raise ValueError(f"Unsupported function code: {func_code}")
-
-        trans_id = random.randint(0, 65535)
-        proto_id = 0
-        length = len(pdu) + 1
-        unit_id = 1
-
-        mbap = trans_id.to_bytes(2, "big") + proto_id.to_bytes(2, "big") + length.to_bytes(2, "big") + unit_id.to_bytes(1, "big")
-        return Ether() / IP(src="192.168.1.2", dst="192.168.1.1") / TCP(sport=502, dport=random.randint(1024, 65535), flags="PA") / Raw(load=mbap + pdu)
-
-    def generate_corpus(self, num_samples=20, output_dir="ml-gen", output_file=None, protocol="modbus"):
-        if not os.path.exists(output_dir):
-            try:
-                os.makedirs(output_dir)
-                logging.info(f"[+] Created output directory: {output_dir}")
-            except Exception as e:
-                logging.error(f"[-] Failed to create output directory {output_dir}: {e}")
-                return None
+        output_dir = output_dir or os.path.join("ml-gen", protocol)
+        os.makedirs(output_dir, exist_ok=True)
 
         if output_file is None:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             output_file = f"{protocol}_synthetic_{timestamp}.pcap"
-
         if not output_file.endswith(".pcap"):
             output_file += ".pcap"
-
         output_path = os.path.join(output_dir, output_file)
+
+        port = PORT_MODBUS if protocol == "modbus" else PORT_OPCUA
+
+        if strict_valid:
+            build_packet = self._build_modbus_valid_packet if protocol == "modbus" else self._build_opcua_valid_packet
+        else:
+            lengths_seen = self.payload_lengths.get(protocol) or [64]
+            fixup = self._fixup_modbus if protocol == "modbus" else self._fixup_opcua
+
+            def build_packet():
+                target_len = max(8, random.choice(lengths_seen) + random.randint(-4, 4))
+                raw = self.generate_sequence(protocol, length=target_len, temperature=random.uniform(0.6, 1.1))
+                return fixup(raw)
+
         synthetic_packets = []
-
         for _ in range(num_samples):
-            query = self.generate_modbus_query_packet()
-            response = self.generate_modbus_response_packet()
-            if query:
-                synthetic_packets.append(query)
-            if response:
-                synthetic_packets.append(response)
-
-        if not synthetic_packets:
-            logging.error("[-] No packets were generated.")
-            return None
+            payload = build_packet()
+            packet = (
+                Ether()
+                / IP(src="192.168.1.1", dst="192.168.1.2")
+                / TCP(sport=random.randint(1024, 65535), dport=port, flags="PA")
+                / Raw(load=payload)
+            )
+            synthetic_packets.append(packet)
 
         try:
             wrpcap(output_path, synthetic_packets)

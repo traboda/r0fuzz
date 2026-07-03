@@ -50,6 +50,7 @@ class Intepreter(object):
             try:
                 RespPacket = sock_obj.recv(1024)
                 print("[*] Received: %s" % hexstr(RespPacket))
+                self.logger.debug(f"RECV:{RespPacket}")
 
             except:
                 print(f"[*] Failed ")

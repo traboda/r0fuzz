@@ -32,15 +32,20 @@ class Modbus(Packet):
     ]
 
 class PackGen(object):
-    def __init__(self, r0obj):
+    def __init__(self, r0obj, valid_address=None):
         self.r0obj = r0obj
-        self.HOST = r0obj.ip 
+        self.HOST = r0obj.ip
         self.src_port = 49901
         self.dest_port = r0obj.port
         self.verbosity = self.r0obj.log_level
         self.pyradamsa_obj = pyradamsa.Radamsa()
         self.logger = get_logger("PackGen", self.verbosity)
-        self.valid_address = Brute().get_address_range()
+        # Brute().get_address_range() is a full 0x0000-0xFFFF scan per function
+        # code against a hardcoded 127.0.0.1:1502 target -- expensive (minutes)
+        # and only meaningful for that one bundled target. Callers that already
+        # know (or don't need) the valid address range can pass it in directly
+        # to skip re-discovering it on every construction.
+        self.valid_address = valid_address if valid_address is not None else Brute().get_address_range()
         self.Interpret = Intepreter(r0obj)
         self.grammar_data = json.load(open("grammar.json"))["modbus"]
 
