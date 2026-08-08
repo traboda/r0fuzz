@@ -38,7 +38,7 @@ packaging==24.2
 paramiko==3.5.1
 pathlib2==2.3.7.post1
 psutil==7.0.0
-pyasn1==0.6.1
+pyasn1==0.6.2
 pyasn1_modules==0.4.2
 pycparser==2.22
 pycryptodomex==3.22.0
